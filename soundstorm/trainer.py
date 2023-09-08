@@ -14,8 +14,7 @@ from einops import rearrange
 
 # from audiolm_pytorch.data import get_dataloader
 from .dataset import get_dataloader, SoundStormDataset
-from audiolm_pytorch.optimizer import get_optimizer
-
+from .optimizer import get_optimizer
 from .soundstorm import SoundStorm
 
 from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
@@ -171,7 +170,7 @@ class SoundStormTrainer(nn.Module):
         # lr and scheduler
         self.lr = lr
         self.initial_lr = initial_lr
-        num_train_steps = epochs * self.ds.__len__() // batch_size
+        num_train_steps = epochs * self.ds.__len__() // (batch_size * grad_accum_every)
         self.scheduler = CosineAnnealingLR(self.optim, T_max = num_train_steps)
         
         
@@ -209,15 +208,20 @@ class SoundStormTrainer(nn.Module):
         
         hps = {"num_train_steps": num_train_steps, "num_warmup_steps": num_warmup_steps, "learning_rate": lr, "initial_learning_rate": lr, "epochs": epochs}
         self.accelerator.init_trackers("soundstorm", config=hps)
+        self.best_dev_loss = float('inf')
 
-    def save(self, path):
+    def save(self, path, dev_loss):
+        if dev_loss < self.best_dev_loss:
+            self.best_dev_loss = dev_loss
+            torch.save(self.accelerator.get_state_dict(self.model), f'{self.results_folder}/SoundStorm_best_dev.pt')
         ckpts = sorted(Path(path).parent.glob(f'SoundStormTrainer_*'))
         if len(ckpts) > self.num_ckpt_keep:
             [os.remove(c) for c in ckpts[:-self.num_ckpt_keep]]
         pkg = dict(
             model = self.accelerator.get_state_dict(self.model),
             optim = self.optim.state_dict(),
-            scheduler = self.scheduler.state_dict()
+            scheduler = self.scheduler.state_dict(),
+            best_dev_loss = self.best_dev_loss
         )
         torch.save(pkg, path)
 
@@ -228,6 +232,7 @@ class SoundStormTrainer(nn.Module):
         if restore_optimizer:
             self.optim.load_state_dict(pkg['optim'])
             self.scheduler.load_state_dict(pkg['scheduler'])
+            self.best_dev_loss = pkg['best_dev_loss']
 
             # + 1 to start from the next step and avoid overwriting the last checkpoint
             self.steps = torch.tensor([checkpoint_num_steps(path) + 1], device=self.device)
@@ -251,7 +256,7 @@ class SoundStormTrainer(nn.Module):
         semantic_token_ids = token_ids[0].squeeze()
         acoustic_token_ids = rearrange(token_ids[1:], 'q b n -> b n q')
         mask = torch.ones(semantic_token_ids.shape, dtype=torch.bool, device=self.device)
-        length = length // 320
+        length = torch.div(length, 320, rounding_mode='trunc')
         for i in range(semantic_token_ids.size(0)):
             mask[i, length[i]:] = False
         tmp_model = self.model.module if isinstance(self.model, torch.nn.parallel.DistributedDataParallel) else self.model
@@ -329,8 +334,8 @@ class SoundStormTrainer(nn.Module):
                     
                     # log
                     if self.is_main and not (steps % self.log_steps):
-                        self.print(f"{steps}: loss: {logs['loss']:0.3f}\tacc:{logs['acc']:0.3f}")
-                        self.accelerator.log({"train_loss": logs['loss'], "train_acc": logs['acc']}, step=steps)
+                        self.print(f"Epoch {epoch}- Step {steps}: loss: {logs['loss']:0.3f}\tacc:{logs['acc']:0.3f}")
+                        self.accelerator.log({"train_loss": logs['loss'], "train_acc": logs['acc'], "learning_rate": lr}, step=steps)
                     logs = {}
                     
                     self.accelerator.wait_for_everyone()
@@ -357,13 +362,12 @@ class SoundStormTrainer(nn.Module):
                                 total_loss += loss.item() * b
                                 losses.append(loss.item())
                                 total_acc += acc.item() * b
-                        self.print(f'{sum(losses) / len(losses)}, {losses[0]}, {losses[-1]}, {num}, {total_loss}, {total_acc}, {b}')
                         self.print(f'{steps}: valid loss {total_loss / num:0.3f}, valid acc {total_acc / num:0.3f}')  
                         self.accelerator.log({"valid_loss": total_loss / num, "valid_acc": total_acc / num}, step=steps) 
                         
                         # save model
                         model_path = str(self.results_folder / f'SoundStormTrainer_{steps:08d}')
-                        self.save(model_path)                        
+                        self.save(model_path, total_loss / num)                        
                         self.print(f'{steps}: saving model to {str(self.results_folder)}')
                         self.model.train()
                         
