@@ -52,7 +52,7 @@ class SoundStormDataset(Dataset):
                  file_list: list,
                  is_raw_wav: bool=False,
                  is_tokens: bool=False,
-                 tokenizer: SpeechTokenizer=None,
+                 tokenizer: Optional[SpeechTokenizer]=None,
                  sample_rate: int= 16000,
                  st_cfg: Optional[str] = None,
                  st_ckpt: Optional[str] = None,

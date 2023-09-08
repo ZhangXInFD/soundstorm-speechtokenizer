@@ -626,6 +626,16 @@ class SoundStorm(nn.Module):
             elif cond_length > length:
                 cond_tokens = cond_tokens[:, :length]
         return cond_tokens
+    
+    @property
+    def device(self):
+        return next(self.net.parameters()).device
+    
+    def load(self, path, strict=True):
+        path = Path(path)
+        assert path.exists()
+        params = torch.load(str(path), map_location = 'cpu')
+        self.load_state_dict(params, strict = strict)
         
     def forward(self,
                 x,
