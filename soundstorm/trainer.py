@@ -135,7 +135,6 @@ class SoundStormTrainer(nn.Module):
                                         is_tokens=is_tokens,
                                         tokenizer=self.tokenizer,
                                         max_sequence=int(max_sequence * self.downsample_rate) if is_raw_wav else max_sequence,
-                                        device=self.accelerator.device,
                                         **tokenizer_kwargs)
         if exists(devset):
             self.valid_ds = devset
@@ -145,7 +144,6 @@ class SoundStormTrainer(nn.Module):
                                             is_tokens=is_tokens,
                                             tokenizer=self.tokenizer,
                                             max_sequence=int(max_sequence * self.downsample_rate) if is_raw_wav else max_sequence,
-                                            device=self.accelerator.device,
                                             **tokenizer_kwargs)
         if self.is_main:
             self.print(f'training with dataset of {len(self.ds)} samples and validating with randomly splitted {len(self.valid_ds)} samples')
@@ -207,8 +205,8 @@ class SoundStormTrainer(nn.Module):
 
         # if self.is_main and force_clear_prev_results is True or (not exists(force_clear_prev_results) and len([*self.results_folder.glob('**/*')]) > 0 and yes_or_no('do you want to clear previous experiment checkpoints and results?')):
         #     rmtree(str(self.results_folder))
-
-        self.results_folder.mkdir(parents = True, exist_ok = True)
+        if not self.results_folder.exists():
+            self.results_folder.mkdir(parents = True, exist_ok = True)
         
         hps = {"num_train_steps": num_train_steps, "num_warmup_steps": num_warmup_steps, "learning_rate": lr, "initial_learning_rate": lr, "epochs": epochs}
         self.accelerator.init_trackers("soundstorm", config=hps)
@@ -229,14 +227,21 @@ class SoundStormTrainer(nn.Module):
         )
         torch.save(pkg, path)
 
-    def load(self, path, restore_optimizer = True):
+    def load(self, path = None, restore_optimizer = True):
+        if not exists(path):
+            ckpts = sorted(self.results_folder.glob(f'SoundStormTrainer_*'))
+            path = str(ckpts[-1])
         model = self.accelerator.unwrap_model(self.model)
-        pkg = model.load(path)
+        pkg = torch.load(path, map_location='cpu')
+        model.load_state_dict(pkg['model'])
 
         if restore_optimizer:
             self.optim.load_state_dict(pkg['optim'])
             self.scheduler.load_state_dict(pkg['scheduler'])
-            self.best_dev_loss = pkg['best_dev_loss']
+            if 'best_dev_loss' in pkg.keys():
+                self.best_dev_loss = pkg['best_dev_loss']
+                if self.is_main:
+                    self.print(f'The best dev loss before is {self.best_dev_loss}')
 
             # + 1 to start from the next step and avoid overwriting the last checkpoint
             self.steps = torch.tensor([checkpoint_num_steps(path) + 1], device=self.device)
@@ -308,6 +313,7 @@ class SoundStormTrainer(nn.Module):
                 param_group['lr'] = lr
         else:
             self.scheduler.step()
+            lr = self.scheduler.get_last_lr()[0]
             
         for epoch in range(self.epochs):
             if self.is_main:
@@ -338,7 +344,7 @@ class SoundStormTrainer(nn.Module):
                     
                     # log
                     if self.is_main and not (steps % self.log_steps):
-                        self.print(f"Epoch {epoch}- Step {steps}: loss: {logs['loss']:0.3f}\tacc:{logs['acc']:0.3f}")
+                        self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}\tacc:{logs['acc']:0.3f}")
                         self.accelerator.log({"train_loss": logs['loss'], "train_acc": logs['acc'], "learning_rate": lr}, step=steps)
                     logs = {}
                     
@@ -383,6 +389,11 @@ class SoundStormTrainer(nn.Module):
                         for param_group in self.optim.param_groups:
                             param_group['lr'] = lr
                     else:
-                        self.scheduler.step()        
+                        self.scheduler.step() 
+                        lr = self.scheduler.get_last_lr()[0]       
             
         self.print('training complete')
+        
+    def continue_train(self):
+        self.load()
+        self.train()
