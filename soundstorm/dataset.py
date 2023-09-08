@@ -7,6 +7,8 @@ from functools import wraps
 # import time
 from torch.nn.utils.rnn import pad_sequence
 import numpy as np
+from beartype import beartype
+from beartype.typing import Optional
 
 TOKEN_PAD_VALUE = 1024
 WAV_PAD_VALUE = 0
@@ -45,14 +47,15 @@ def get_dataloader(ds, is_raw_wav=False, **kwargs):
 
 class SoundStormDataset(Dataset):
     
+    @beartype
     def __init__(self, 
                  file_list: list,
                  is_raw_wav: bool=False,
                  is_tokens: bool=False,
                  tokenizer: SpeechTokenizer=None,
-                 sample_rate = 16000,
-                 st_cfg: str = '/remote-home/xzhang/Speech/SpeechTokenizer/ckpt/config.json',
-                 st_ckpt: str = '/remote-home/xzhang/Speech/SpeechTokenizer/ckpt/SpeechTokenizer.pt',
+                 sample_rate: int= 16000,
+                 st_cfg: Optional[str] = None,
+                 st_ckpt: Optional[str] = None,
                  max_sequence: int=512,
                  device = 'cpu'):
         self.file_list = file_list
@@ -85,7 +88,7 @@ class SoundStormDataset(Dataset):
         if sr != self.sample_rate:
             wav = torchaudio.functional.resample(wav, sr, self.sample_rate)
         if self.is_raw_wav:
-            return wav.squeeze()[:self.max_sequence * 320], min(wav.size(-1), self.max_sequence * 320)
+            return wav.squeeze()[:self.max_sequence], min(wav.size(-1), self.max_sequence)
         wav = wav.to(self.device)
         with torch.inference_mode():
             tokens = self.tokenizer.encode(wav.unsqueeze(0))
@@ -95,15 +98,3 @@ class SoundStormDataset(Dataset):
         acoustic_tokens = rearrange(tokens[1:], 'q b n -> b n q').squeeze()
         return semantic_tokens, acoustic_tokens
         
-# if __name__ == '__main__':
-#     with open('/remote-home/xzhang/Speech/HubertCodec/general_valid_file_list.txt', 'r') as f:
-#         file_list = f.readlines()
-#     ds = SoundStormDataset(file_list=file_list)
-#     dl = DataLoader(dataset=ds,
-#                     batch_size=32,
-#                     num_workers=8,
-#                     collate_fn=collate_one_or_multiple_tensors)
-#     curr_time = time.time()
-#     for semantic_tokens, acoustic_tokens in dl:
-#         print(semantic_tokens.shape, acoustic_tokens.shape, f'time cost:{time.time() - curr_time}')
-#         curr_time = time.time()

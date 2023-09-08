@@ -76,6 +76,7 @@ class SoundStormTrainer(nn.Module):
         tokenizer: Optional[SpeechTokenizer] = None,
         is_raw_wav: bool = False,
         is_tokens: bool = False,
+        tokenizer_kwargs: dict = dict(),
         trainset: Optional[Dataset] = None,
         devset: Optional[Dataset] = None,
         lr = 3e-4,
@@ -122,6 +123,7 @@ class SoundStormTrainer(nn.Module):
         self.tokenizer = tokenizer
         if exists(self.tokenizer):
             self.tokenizer.eval()
+            self.downsample_rate = tokenizer.downsample_rate
         (self.tokenizer) =  self.accelerator.prepare(self.tokenizer)
 
         # create dataset
@@ -132,8 +134,9 @@ class SoundStormTrainer(nn.Module):
                                         is_raw_wav=is_raw_wav,
                                         is_tokens=is_tokens,
                                         tokenizer=self.tokenizer,
-                                        max_sequence=max_sequence,
-                                        device=self.accelerator.device)
+                                        max_sequence=int(max_sequence * self.downsample_rate) if is_raw_wav else max_sequence,
+                                        device=self.accelerator.device,
+                                        **tokenizer_kwargs)
         if exists(devset):
             self.valid_ds = devset
         else:
@@ -141,8 +144,9 @@ class SoundStormTrainer(nn.Module):
                                             is_raw_wav=is_raw_wav,
                                             is_tokens=is_tokens,
                                             tokenizer=self.tokenizer,
-                                            max_sequence=max_sequence,
-                                            device=self.accelerator.device)
+                                            max_sequence=int(max_sequence * self.downsample_rate) if is_raw_wav else max_sequence,
+                                            device=self.accelerator.device,
+                                            **tokenizer_kwargs)
         if self.is_main:
             self.print(f'training with dataset of {len(self.ds)} samples and validating with randomly splitted {len(self.valid_ds)} samples')
             
@@ -256,7 +260,7 @@ class SoundStormTrainer(nn.Module):
         semantic_token_ids = token_ids[0].squeeze()
         acoustic_token_ids = rearrange(token_ids[1:], 'q b n -> b n q')
         mask = torch.ones(semantic_token_ids.shape, dtype=torch.bool, device=self.device)
-        length = torch.div(length, 320, rounding_mode='trunc')
+        length = torch.div(length, self.downsample_rate, rounding_mode='trunc')
         for i in range(semantic_token_ids.size(0)):
             mask[i, length[i]:] = False
         tmp_model = self.model.module if isinstance(self.model, torch.nn.parallel.DistributedDataParallel) else self.model
