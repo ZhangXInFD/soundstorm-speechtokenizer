@@ -637,6 +637,82 @@ class SoundStorm(nn.Module):
         params = torch.load(str(path), map_location = 'cpu')
         self.load_state_dict(params, strict = strict)
         
+    @torch.no_grad()
+    @eval_decorator
+    def genenrate(self,
+                  semantic_tokens,
+                  prompt_tokens = None,
+                  steps = 8,
+                  num_full_sampling_levels = 1,
+                  topk_pres = 0.7,
+                  greedy=True,
+                  ):
+        device = self.device
+        batch_size, seq_length = semantic_tokens.shape
+        mask = torch.ones((batch_size, semantic_tokens.size(-1), self.num_quantizers), device=device)
+        masked = mask * self.mask_id
+        cond_tokens = semantic_tokens
+        
+        if exists(prompt_tokens):
+            prompt_semantic_tokens = prompt_tokens[:, :, 0]
+            prompt_acoustic_tokens = prompt_tokens[:, :, 1:]
+            cond_tokens = torch.cat([prompt_semantic_tokens, cond_tokens], axis=-1)
+            masked = torch.cat([prompt_acoustic_tokens, masked], axis=1)
+            mask = torch.cat([torch.zeros_like(prompt_acoustic_tokens, dtype=torch.bool, device=device), mask.bool()], axis=1)
+        else:
+            mask = mask.bool()
+            
+            
+        prompt_mask = mask.clone()
+        seq_mask = torch.ones_like(cond_tokens, dtype=torch.bool, device=device)
+        cond_tokens = self.semantic_token_emb(cond_tokens)
+        seq_mask_with_quantizer = repeat(seq_mask, 'b n -> b (n q)', q = self.num_quantizers)
+        times = torch.linspace(0., 1., steps + 1, device=device)
+        rand_mask_probs = cosine_schedule(times)
+        rand_mask_probs = rearrange(rand_mask_probs, 'n -> n 1')
+        seq_len_from_mask = reduce(seq_mask, 'b n -> b', 'sum')
+        all_mask_num_tokens = (rand_mask_probs * seq_len_from_mask).long()
+        
+        for q in range(self.num_quantizers):
+            mask_num_tokens = all_mask_num_tokens if q < num_full_sampling_levels else torch.zeros((1, batch_size), dtype = torch.long, device = device)
+            for i, mask_num_tokens in enumerate(all_mask_num_tokens):
+                masked_input = rearrange(masked, 'b n q -> b (n q)')
+                logits = self.net(masked_input.long(), mask=seq_mask, cond=cond_tokens)
+                if greedy and (q >= num_full_sampling_levels or (mask_num_tokens == 0).all()):
+                    sampled_ids = logits.argmax(axis=-1)
+                else:
+                    logits = top_k(logits, thres=topk_pres)
+                    temperature = 1.0 * i / steps
+                    sampled_ids = gumbel_sample(logits, temperature=temperature)
+                if q >= num_full_sampling_levels:
+                    masked[:, :, q:] = rearrange(sampled_ids, 'b (n q) -> b n q', q=self.num_quantizers)[:, :, q:]
+                    mask[:, :, q] = False
+                    continue
+                
+                masked = torch.where(mask, rearrange(sampled_ids, 'b (n q) -> b n q', q=self.num_quantizers), masked)
+                if (mask_num_tokens == 0).all():    
+                    continue
+                
+                scores = 1 - logits.softmax(dim=-1)
+                scores = scores.gather(2, rearrange(sampled_ids, 'b n -> b n 1'))
+                scores = rearrange(scores, 'b n 1 -> b n')
+                mask = torch.zeros_like(scores, dtype = torch.bool, device=device)
+                mask_value = -torch.finfo(scores.dtype).max
+                scores = scores.masked_fill(~seq_mask_with_quantizer, mask_value)
+                scores_sorted = scores.argsort(dim = -1, descending = True)
+                mask_num_tokens = rearrange(mask_num_tokens, 'b -> b 1')
+                mask_tokens = scores_sorted[:, :mask_num_tokens]
+                rows = torch.arange(mask_tokens.size(0)).unsqueeze(-1).expand_as(mask_tokens)
+                mask[rows, mask_tokens] = True
+                mask = rearrange(mask, 'b (n q) -> b n q', q = self.num_quantizers)
+                mask[:, :, (q + 1):] = True
+                mask = mask & prompt_mask
+                
+                masked = masked.masked_fill(mask, self.mask_id)
+        output = torch.cat([semantic_tokens.unsqueeze(-1), masked[:, -seq_length:]], axis=-1)
+        return output.detach().long()
+        
+        
     def forward(self,
                 x,
                 cond_ids,
