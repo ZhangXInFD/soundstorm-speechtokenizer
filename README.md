@@ -13,13 +13,19 @@ This repository is a modification of [lucidrains/soundstorm-pytorch](https://git
 
 ## Samples
 
-We used two 3090 gpus to train a toy model on LibriSpeech-960. Samples for both zero-shot TTS and voice conversion are provided on [our demo page](https://0nutation.github.io/SpeechTokenizer.github.io/).
+We used two RTX-3090 gpus to train a toy model on LibriSpeech-960. Samples of zero-shot TTS  on [our demo page](https://0nutation.github.io/SpeechTokenizer.github.io/). Voice conversion samples and unprompt samples are provided in [samples](samples).
 
+### Objective Metrics
+#### Zero-shot TTS
 | Model| Speaker Similarity|
-|:----|:----|
+|:----|:----:|
 |VALL-E (our)| 0.7593|
 |USLM| 0.8381|
 |USLM (SoundStorm)| 0.8827|
+#### Voice Conversion
+|Model| Speaker Similarity|
+|:----|:----:|
+|SoundStorm|0.8985|
 
 ## Installation
 
@@ -42,13 +48,13 @@ from speechtokenizer import SpeechTokenizer
 from einops import rearrange
 
 conformer = ConformerWrapper(codebook_size=1024,
-                                num_quantizers=7,
-                                conformer={'dim':1024, 
-                                          'depth': 12, 
-                                          'heads':8, 
-                                          'dim_head': 128, 
-                                          'attn_flash': False
-                                          },
+                            num_quantizers=7,
+                            conformer={'dim':1024, 
+                                      'depth': 12, 
+                                      'heads':8, 
+                                      'dim_head': 128, 
+                                      'attn_flash': False
+                                      },
                                 )
 
 soundstorm = SoundStorm(net=conformer,
@@ -63,7 +69,7 @@ codes = torch.randint(0, 1024, (2, 1024, 7)) # (batch, seq, num RVQ)
 
 # do the below in a loop for a ton of data
 
-loss, _ = model(codes)
+loss, acc, generated = soundstorm(codes)
 loss.backward()
 
 ```

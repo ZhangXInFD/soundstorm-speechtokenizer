@@ -1,4 +1,4 @@
-from soundstorm import SoundStorm, SoundStormDataset, ConformerWrapper
+from soundstorm_speechtokenizer import SoundStorm, ConformerWrapper
 import torch
 from speechtokenizer import SpeechTokenizer
 import torchaudio
@@ -50,14 +50,14 @@ class VoiceConversion:
                                                 prompt_tokens=prompt_tokens,
                                                 steps=step,
                                                 greedy=greedy)
-            self.decode(f'{tgt_dir}/gererate_{step}.wav', generated.squeeze(0))
+            self.decode(f'{tgt_dir}/generate_{step}.wav', generated.squeeze(0))
         
         
     
 
 if __name__ == '__main__':
-    st_cfg = '/remote-home/xzhang/Speech/SpeechTokenizer/ckpt/config.json'
-    st_ckpt = '/remote-home/xzhang/Speech/SpeechTokenizer/ckpt/SpeechTokenizer.pt'  
+    st_cfg = '/path/config.json'
+    st_ckpt = '/path/SpeechTokenizer.pt'  
     tokenizer = SpeechTokenizer.load_from_checkpoint(st_cfg, st_ckpt)
 
     conformer = ConformerWrapper(codebook_size=1024,
@@ -70,26 +70,27 @@ if __name__ == '__main__':
                             semantic_pad_id=1024,
                             pad_id=1024,
                             schedule = 'cosine')
-    soundstorm.load('/remote-home/xzhang/Speech/soundstorm-speechtokenizer/ls_result_wav_3090/SoundStorm_best_dev.pt')
+    soundstorm.load('/path/SoundStorm_best_dev.pt')
     device = 'cuda:1'
     vc = VoiceConversion(tokenizer=tokenizer,
                          soundstorm=soundstorm,
                          device=device)
-    root_dir = '/remote-home/share/SpeechPretrain/LibriSpeech/LibriSpeech/dev-clean'
+    root_dir = '/path/LibriSpeech/LibriSpeech/dev-clean'
     speakers = [folder for folder in os.listdir(root_dir) if '.txt' not in folder]
     file_dict = {speaker:[f'{chapter}/{file}' for chapter in os.listdir(f'{root_dir}/{speaker}') for file in os.listdir(f'{root_dir}/{speaker}/{chapter}') if '.txt' not in file] for speaker in speakers}
-    tgt_dir = './vc_ls_dev_clean'
-    k = 30
+    tgt_dir = './vc_samples'
+    k = 40
     random.seed(0)
     prompt_speakers = random.sample(speakers, k)
     src_speakers = random.sample(speakers, k)
     for prompt_speaker, src_speaker in tqdm(zip(prompt_speakers, src_speakers)):
-        prompt_file = random.choice(file_dict[prompt_speaker])
-        while src_speaker == prompt_speaker:
-            src_speaker = random.choice(speakers)
-        src_file = random.choice(file_dict[src_speaker])
-        vc.generate(prompt_file=f'{root_dir}/{prompt_speaker}/{prompt_file}',
-                    src_file=f'{root_dir}/{src_speaker}/{src_file}',
-                    tgt_dir=tgt_dir + '/' + '-'.join(src_file.split('-')[:2]) + '_' + '-'.join(prompt_file.split('-')[:2]),
-                    steps=[4, 8, 16]
-        )
+        for i in range(2):
+            prompt_file = random.choice(file_dict[prompt_speaker])
+            while src_speaker == prompt_speaker:
+                src_speaker = random.choice(speakers)
+            src_file = random.choice(file_dict[src_speaker])
+            vc.generate(prompt_file=f'{root_dir}/{prompt_speaker}/{prompt_file}',
+                        src_file=f'{root_dir}/{src_speaker}/{src_file}',
+                        tgt_dir=tgt_dir + '/' + '-'.join(src_file.split('/')[-1].split('-')[:2]) + '_' + '-'.join(prompt_file.split('/')[-1].split('-')[:2]),
+                        steps=[1]
+            )
