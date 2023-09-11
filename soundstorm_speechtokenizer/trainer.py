@@ -12,7 +12,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import Dataset
 from einops import rearrange
 
-# from audiolm_pytorch.data import get_dataloader
 from .dataset import get_dataloader, SoundStormDataset
 from .optimizer import get_optimizer
 from .soundstorm import SoundStorm

@@ -1,17 +1,17 @@
 # soundstorm-speechtokenizer
+<p style="display: flex; justify-content: center;">
+  <figure style="margin-right: 10px;">
+    <img src="images/soundstorm.png" width="100%" />
+    <figcaption style="text-align: center;">SoundStorm</figcaption>
+  </figure>
+  <figure style="margin-left: 10px;">
+    <img src="images/speechtokenizer.png" width="100%" />
+    <figcaption style="text-align: center;">SpeechTokenizer</figcaption>
+  </figure>
+</p>
 
 ## Introduction
 Implementation of [SoundStorm](https://arxiv.org/abs/2305.09636) built upon [SpeechTokenizer](https://github.com/ZhangXInFD/SpeechTokenizer). We employ RVQ-1 of SpeechTokenizer as the semantic tokens described in the paper, using it as a condition to generate tokens for the subsequent RVQ layers.
-<div style="display: flex; text-align: center;">
-  <figure style="flex: 1; padding-right: 5px;">
-    <img src="images/soundstorm.png" alt="SoundStorm" width="80%" />
-    <figcaption> SoundStorm </figcaption>
-  </figure>
-  <figure style="flex: 1; padding-left: 5px;">
-    <img src="images/speechtokenizer.png" alt="SpeechTokenizer" width="120%" />
-    <figcaption> SpeechTokenizer </figcaption>
-  </figure>
-</div>
 
 
 This repository is a modification of [lucidrains/soundstorm-pytorch](https://github.com/lucidrains/soundstorm-pytorch). While the Conformer implementation remains intact from the original, I've rewritten the SoundStorm model and its training components.
@@ -132,7 +132,10 @@ trainer = SoundStormTrainer(model=soundstorm,
                             log_steps=10,
                             save_model_steps=5000,
                             results_folder=result_folder,
-                            accelerate_kwargs={'log_with':"tensorboard",'project_dir':f'{result_folder}'},
+                            accelerate_kwargs={
+                              'log_with':"tensorboard",
+                              'project_dir':f'{result_folder}'
+                              },
                             num_workers=8)
 trainer.train()
 

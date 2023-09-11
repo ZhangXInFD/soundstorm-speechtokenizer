@@ -1,20 +1,18 @@
 import math
 from random import random, randrange
 from functools import wraps
-from contextlib import nullcontext
 from collections import namedtuple
 from pathlib import Path
 
 import torch
-from torch import Tensor, nn, einsum
+from torch import Tensor, nn
 import torch.nn.functional as F
 
-from einops import rearrange, reduce, repeat, unpack, pack
+from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange, EinMix
 
 from beartype import beartype
-from beartype.door import is_bearable
-from beartype.typing import Union, Dict, Optional, List, Optional
+from beartype.typing import Union, Dict
 
 from .attend import Attend
 
