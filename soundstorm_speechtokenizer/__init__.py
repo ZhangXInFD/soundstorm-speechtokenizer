@@ -10,3 +10,5 @@ from .trainer import (
 from .dataset import (
     SoundStormDataset
 )
+
+__version__ = "1.0.0"

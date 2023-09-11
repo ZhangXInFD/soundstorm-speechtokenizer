@@ -16,6 +16,7 @@ from einops import rearrange
 from .dataset import get_dataloader, SoundStormDataset
 from .optimizer import get_optimizer
 from .soundstorm import SoundStorm
+from .tracking import MyTensorBoardTracker
 
 from accelerate import Accelerator, DistributedType, DistributedDataParallelKwargs
 from speechtokenizer import SpeechTokenizer
@@ -113,8 +114,6 @@ class SoundStormTrainer(nn.Module):
         self.batch_size = batch_size
         self.grad_accum_every = grad_accum_every
         
-        # self.only_train_generator = only_train_generator
-        # self.only_train_critic = only_train_critic
 
         # max grad norm
 
@@ -156,8 +155,6 @@ class SoundStormTrainer(nn.Module):
 
         # dataloader
 
-        # self.dl = get_dataloader(self.ds, batch_size = batch_size, shuffle = True, drop_last = drop_last)
-        # self.valid_dl = get_dataloader(self.valid_ds, batch_size = batch_size, shuffle = False, drop_last = False)
         self.dl = get_dataloader(self.ds, is_raw_wav=is_raw_wav, batch_size = batch_size, shuffle = True, drop_last = drop_last, num_workers=num_workers)
         self.valid_dl = get_dataloader(self.valid_ds, is_raw_wav=is_raw_wav, batch_size = batch_size, shuffle = False, drop_last = False, num_workers=num_workers)
         
@@ -334,6 +331,8 @@ class SoundStormTrainer(nn.Module):
                 self.accelerator.backward(loss / self.grad_accum_every)
                 grad_accum += 1
                 # self.accelerator.wait_for_everyone()
+                
+                
                 # update params
                 if grad_accum == self.grad_accum_every:
                     if exists(self.max_grad_norm):
@@ -345,7 +344,7 @@ class SoundStormTrainer(nn.Module):
                     # log
                     if self.is_main and not (steps % self.log_steps):
                         self.print(f"Epoch {epoch} -- Step {steps}: loss: {logs['loss']:0.3f}\tacc:{logs['acc']:0.3f}")
-                        self.accelerator.log({"train_loss": logs['loss'], "train_acc": logs['acc'], "learning_rate": lr}, step=steps)
+                        self.accelerator.log({"train/loss": logs['loss'], "train/acc": logs['acc'], "train/learning_rate": lr}, step=steps)
                     logs = {}
                     
                     self.accelerator.wait_for_everyone()
@@ -373,7 +372,7 @@ class SoundStormTrainer(nn.Module):
                                 losses.append(loss.item())
                                 total_acc += acc.item() * b
                         self.print(f'{steps}: valid loss {total_loss / num:0.3f}, valid acc {total_acc / num:0.3f}')  
-                        self.accelerator.log({"valid_loss": total_loss / num, "valid_acc": total_acc / num}, step=steps) 
+                        self.accelerator.log({"valid/loss": total_loss / num, "valid/acc": total_acc / num}, step=steps) 
                         
                         # save model
                         model_path = str(self.results_folder / f'SoundStormTrainer_{steps:08d}')
