@@ -32,9 +32,6 @@ We used two RTX-3090 gpus to train a toy model on LibriSpeech-960. Samples of ze
 soundstorm-speechtokenizer requires Python>=3.8, and a reasonly recent version of PyTorch.
 To install soundstorm_speechtokenizer, you can run from this repository:
 ```bash
-pip install -U soundstorm_speechtokenizer
-
-# or you can clone the repo and install locally
 git clone https://github.com/ZhangXInFD/soundstorm-speechtokenizer.git
 cd soundstorm-speechtokenizer
 pip install .
@@ -74,7 +71,7 @@ loss.backward()
 
 ```
 ### Train
-We provide a trainer to train SoundStorm, which supports both audio input and token sequence input. An example of training is shown in [train.py](train.py). You should generate a text file that record the files used to train and valid. An example used to process LibriSpeech-960 is provided in [ls_preprocess.py](ls_preprocess.py).
+We provide a trainer to train SoundStorm, which supports both audio input and token sequence input. An example of training is shown in [train.py](train.py). You should generate a text file that record the files used to train and valid before training. An example used to process LibriSpeech-960 is provided in [ls_preprocess.py](ls_preprocess.py).
 
 ```python
 from soundstorm_speechtokenizer import SoundStormTrainer
