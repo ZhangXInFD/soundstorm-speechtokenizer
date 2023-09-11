@@ -1,12 +1,7 @@
 # soundstorm-speechtokenizer
 <p style="display: flex; justify-content: center;">
   <figure style="margin-right: 10px;">
-    <img src="images/soundstorm.png" width="100%" />
-    <figcaption style="text-align: center;">SoundStorm</figcaption>
-  </figure>
-  <figure style="margin-left: 10px;">
-    <img src="images/speechtokenizer.png" width="100%" />
-    <figcaption style="text-align: center;">SpeechTokenizer</figcaption>
+    <img src="images/soundstorm-speechtokenizer.png" width="100%" />
   </figure>
 </p>
 
