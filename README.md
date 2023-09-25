@@ -15,6 +15,7 @@ This repository is a modification of [lucidrains/soundstorm-pytorch](https://git
 
 We used two RTX-3090 gpus to train a toy model on LibriSpeech-960. Samples of zero-shot TTS  on [our demo page](https://0nutation.github.io/SpeechTokenizer.github.io/). Voice conversion samples and unprompt samples are provided in [samples](samples).
 
+
 ### Objective Metrics
 #### Zero-shot TTS
 | Model| Speaker Similarity|
@@ -26,6 +27,13 @@ We used two RTX-3090 gpus to train a toy model on LibriSpeech-960. Samples of ze
 |Model| Speaker Similarity|
 |:----|:----:|
 |SoundStorm|0.8985|
+
+## Release
+- [9/25] 🔥 We released checkpoint trained on LibriSpeech.
+### Model storage
+| Model| Dataset |Discription|
+|:----|:----:|:----|
+|[soundstorm_speechtokenizer](https://huggingface.co/fnlp/USLM/tree/main/SoundStorm_LibriSpeech)|LibriSpeech|conformer={'dim':1024,'depth': 12,'heads':8, 'dim_head': 128,'attn_flash': False} |
 
 ## Installation
 
