@@ -122,7 +122,6 @@ class SoundStormTrainer(nn.Module):
         if exists(self.tokenizer):
             self.tokenizer.eval()
             self.downsample_rate = tokenizer.downsample_rate
-        (self.tokenizer) =  self.accelerator.prepare(self.tokenizer)
 
         # create dataset
         if exists(trainset):
@@ -178,12 +177,14 @@ class SoundStormTrainer(nn.Module):
 
         (
             self.model,
+            self.tokenizer,
             self.optim,
             self.scheduler,
             self.dl,
             self.valid_dl
         ) = self.accelerator.prepare(
             self.model,
+            self.tokenizer,
             self.optim,
             self.scheduler,
             self.dl,

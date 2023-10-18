@@ -77,22 +77,39 @@ class SoundStormDataset(Dataset):
         file = self.file_list[index].strip()
         if self.is_tokens:
             tokens = torch.from_numpy(np.load(file))
+            if tokens.size(0) > self.max_sequence:
+                start = torch.randint(0, tokens.size(0) - self.max_sequence, (1,))
+                tokens = tokens[start: (start + self.max_squence)]
             semantic_tokens = tokens[:, 0]
             acoustic_tokens = tokens[:, 1:]
             return semantic_tokens[:self.max_sequence], acoustic_tokens[:self.max_sequence]
-        wav, sr = torchaudio.load(file)
+        while True:
+            try:
+                wav, sr = torchaudio.load(file)
+                if wav.sum() != 0:
+                    break
+                raise ValueError('Error audio file')
+            except:
+                with open('./error_file.txt', 'a+') as f:
+                    f.write(file + '\n')
+                index -= 1
+                file = self.file_list[index].strip()
         if wav.size(0) > 1:
             wav = wav.mean(axis=0)
             wav = wav.unsqueeze(0)
         if sr != self.sample_rate:
             wav = torchaudio.functional.resample(wav, sr, self.sample_rate)
         if self.is_raw_wav:
+            if wav.size(-1) > self.max_sequence:
+                start = torch.randint(0, wav.size(-1) - self.max_sequence, (1,))
+                wav = wav[:, start: (start + self.max_sequence)]
             return wav.squeeze()[:self.max_sequence], min(wav.size(-1), self.max_sequence)
         wav = wav.to(self.device)
         with torch.inference_mode():
             tokens = self.tokenizer.encode(wav.unsqueeze(0))
         if tokens.size(-1) > self.max_sequence:
-            tokens = tokens[:, :, :self.max_sequence]
+            start = torch.randint(0, tokens.size(-1) - self.max_sequence, (1,))
+            tokens = tokens[:, :, start:(start + self.max_sequence)]
         semantic_tokens = tokens[0].squeeze()
         acoustic_tokens = rearrange(tokens[1:], 'q b n -> b n q').squeeze()
         return semantic_tokens, acoustic_tokens

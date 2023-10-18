@@ -637,7 +637,7 @@ class SoundStorm(nn.Module):
         
     @torch.no_grad()
     @eval_decorator
-    def genenrate(self,
+    def generate(self,
                   semantic_tokens,
                   prompt_tokens = None,
                   steps = 8,
