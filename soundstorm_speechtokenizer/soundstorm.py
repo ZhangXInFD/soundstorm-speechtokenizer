@@ -672,7 +672,7 @@ class SoundStorm(nn.Module):
         all_mask_num_tokens = (rand_mask_probs * seq_len_from_mask).long()
         
         for q in range(self.num_quantizers):
-            mask_num_tokens = all_mask_num_tokens if q < num_full_sampling_levels else torch.zeros((1, batch_size), dtype = torch.long, device = device)
+            all_mask_num_tokens = all_mask_num_tokens if q < num_full_sampling_levels else torch.zeros((1, batch_size), dtype = torch.long, device = device)
             for i, mask_num_tokens in enumerate(all_mask_num_tokens):
                 masked_input = rearrange(masked, 'b n q -> b (n q)')
                 logits = self.net(masked_input.long(), mask=seq_mask, cond=cond_tokens)
